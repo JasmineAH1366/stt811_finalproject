@@ -1,0 +1,23 @@
+---
+title: "Project"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Libraries
+```{r}
+
+```
+Data
+```{r}
+diabetic_readmission_data <- read.csv("data/diabetic_data_initial.csv")
+```
+
+```{r}
+NROW(diabetic_readmission_data)
+```
