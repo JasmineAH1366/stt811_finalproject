@@ -12,12 +12,57 @@ output:
 Libraries
 ```{r}
 library(tidyverse)
+library(ggcorrplot)
+library(GGally)
 ```
 Data
 ```{r}
-diabetic_readmission_data <- read.csv("data/diabetic_data_initial.csv")
+diabetic_readmission_data <- read.csv("../data/diabetic_data_initial.csv")
+table(diabetic_readmission_data$readmitted)
+```
+## Removing dead or hospice patients
+
+```{r}
+dead_hospice <- c(11, 13, 14, 19, 20, 21)
+diabetic_readmission_data <- diabetic_readmission_data %>%
+  filter(!discharge_disposition_id %in% dead_hospice)
+```
+
+## Convert the data into admitted or not admitted category
+
+--> <30, >30 : 1
+--> NO: 0
+
+```{r}
+diabetic_readmission_data$y <- as.factor(ifelse(diabetic_readmission_data$readmitted == '<30' | 
+         diabetic_readmission_data$readmitted == '>30', 1,0))
+table(diabetic_readmission_data$y)
+```
+### Correlation for each class:
+
+```{r}
+col_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
+
+##class 0: 
+n_ <- diabetic_readmission_data %>% filter(y == 0)
+ggcorrplot(cor(n_[col_names]))
 ```
 
 ```{r}
-read.csv("data/id_mapping.csv")
+n_ <- diabetic_readmission_data %>% filter(y == 1)
+ggcorrplot(cor(n_[col_names]))
 ```
+
+```{r}
+ggpairs(diabetic_readmission_data, columns=col_names, aes(color = y, alpha = 0.5))
+```
+
+## 
+```{r}
+
+```
+
+
+References: 
+
+1. http://www.sthda.com/english/wiki/ggcorrplot-visualization-of-a-correlation-matrix-using-ggplot2
