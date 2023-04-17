@@ -11,7 +11,7 @@ output:
 
 Libraries
 ```{r}
-
+library(tidyverse)
 ```
 Data
 ```{r}
@@ -19,5 +19,5 @@ diabetic_readmission_data <- read.csv("data/diabetic_data_initial.csv")
 ```
 
 ```{r}
-NROW(diabetic_readmission_data)
+read.csv("data/id_mapping.csv")
 ```
