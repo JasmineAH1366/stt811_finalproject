@@ -42,7 +42,7 @@ table(diabetic_readmission_data$y)
 
 ```{r}
 col_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
-View(col_names)
+#View(col_names)
 
 ##class 0: 
 n_ <- diabetic_readmission_data %>% filter(y == 0)
@@ -65,10 +65,17 @@ str(diabetic_readmission_data)
 ```
 
 ```{r}
-medicine <- c("metformin","repaglinide","nateglinide","chlorpropamide","glimepiride","acetohexamide","glipizide","glyburide","tolbutamide","pioglitazone","rosiglitazone","acarbose","miglitol","troglitazone","tolazamide","examide","citoglipton","insulin","glyburide.metformin","glipizide.metformin","glimepiride.pioglitazone","metformin.rosiglitazone","metformin.pioglitazone")
-ggpairs(diabetic_readmission_data, columns=medicine, aes(color = y, alpha = 0.5))
+medicine1 <- c("metformin","repaglinide","nateglinide","chlorpropamide","glimepiride","acetohexamide")
+medicine2 <- c("glipizide","glyburide","tolbutamide","pioglitazone","rosiglitazone","acarbose")
+medicine3 <- c("miglitol","troglitazone","tolazamide","examide","citoglipton","insulin")
+medicine4 <- c("glyburide.metformin","glipizide.metformin","glimepiride.pioglitazone","metformin.rosiglitazone","metformin.pioglitazone")
+ggpairs(diabetic_readmission_data, columns=medicine1, aes(color = y, alpha = 0.5))
+ggpairs(diabetic_readmission_data, columns=medicine2, aes(color = y, alpha = 0.5))
+ggpairs(diabetic_readmission_data, columns=medicine3, aes(color = y, alpha = 0.5))
+ggpairs(diabetic_readmission_data, columns=medicine4, aes(color = y, alpha = 0.5))
 
 ```
+
 
 
 References: 
