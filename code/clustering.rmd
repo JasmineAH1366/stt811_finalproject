@@ -1,0 +1,25 @@
+---
+title: "Clustering Numerical Data"
+author: ""
+date: "`r Sys.Date()`"
+output:
+  word_document: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+Libraries
+```{r}
+library(tidyverse)
+library(ggcorrplot)
+library(GGally)
+library(naniar)
+library(DT)
+```
+
+```{r}
+diabetic_readmission_data_numeric <-diabetic_readmission_data_iid[, unlist(lapply(diabetic_readmission_data_iid, is.numeric))]
+diabetic_readmission_data_numeric
+```
+
