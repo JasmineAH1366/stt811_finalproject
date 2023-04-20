@@ -1,0 +1,322 @@
+---
+title: "Feature Engineering - Project"
+author: "Jasmine Harris"
+date: "4/20/2023"
+output: word_document
+---
+```{r}
+summary(new_diabetic_readmission_data)
+```
+```{r}
+str(new_diabetic_readmission_data)
+
+#49 Rows 
+```
+
+```{r}
+#NOTES
+
+#Numerical Variables 
+#encounter_id, patient_nbr, admission_type_id, discharge_disposition_id, admission_source_id, time_in_hospital, num_lab_procedures, num_procedures, num_medications, number_outpatient, number_emergency, number_inpatient, number_diagnoses, by 
+
+#Categorical 
+#race, gender, age, diag_1, diag_2, diag_3, max_glu_serum, A1Cresult, metformin, repaglinide, nateglinide, chlorpropamide, glimepiride, acetohexamide, glipizide, glyburide, tolbutamide, pioglitazone, rosiglitazone, acarbose, miglitol, troglitazone, tolazamide, examide, citoglipton, insulin, glyburide.metformin, glipizide.metformin, glimepiride.pioglitazone, metformin.rosiglitazone, metformin.pioglitazone, change, diabetesMed, readmitted
+
+#diag_1, diag_2, diag_3 will not be changed to numerical 
+
+#Binary Variable 
+#y
+
+```
+
+```{r}
+#Changing categorical variables into numeric 
+
+new_diabetic_readmission_data$race <- as.factor(new_diabetic_readmission_data$race)
+new_diabetic_readmission_data$gender <- as.factor(new_diabetic_readmission_data$gender)
+new_diabetic_readmission_data$age <- as.factor(new_diabetic_readmission_data$age)
+new_diabetic_readmission_data$max_glu_serum <- as.factor(new_diabetic_readmission_data$max_glu_serum)
+new_diabetic_readmission_data$A1Cresult <- as.factor(new_diabetic_readmission_data$A1Cresult)
+new_diabetic_readmission_data$metformin <- as.factor(new_diabetic_readmission_data$metformin)
+new_diabetic_readmission_data$repaglinide <- as.factor(new_diabetic_readmission_data$repaglinide)
+new_diabetic_readmission_data$nateglinide <- as.factor(new_diabetic_readmission_data$nateglinide)
+new_diabetic_readmission_data$chlorpropamide <- as.factor(new_diabetic_readmission_data$chlorpropamide)
+new_diabetic_readmission_data$glimepiride <- as.factor(new_diabetic_readmission_data$glimepiride)
+new_diabetic_readmission_data$acetohexamide <- as.factor(new_diabetic_readmission_data$acetohexamide)
+new_diabetic_readmission_data$glipizide <- as.factor(new_diabetic_readmission_data$glipizide)
+new_diabetic_readmission_data$glyburide <- as.factor(new_diabetic_readmission_data$glyburide)
+new_diabetic_readmission_data$tolbutamide <- as.factor(new_diabetic_readmission_data$tolbutamide)
+new_diabetic_readmission_data$pioglitazone <- as.factor(new_diabetic_readmission_data$pioglitazone)
+new_diabetic_readmission_data$rosiglitazone <- as.factor(new_diabetic_readmission_data$rosiglitazone)
+new_diabetic_readmission_data$acarbose <- as.factor(new_diabetic_readmission_data$acarbose)
+new_diabetic_readmission_data$miglitol <- as.factor(new_diabetic_readmission_data$miglitol)
+new_diabetic_readmission_data$troglitazone <- as.factor(new_diabetic_readmission_data$troglitazone)
+new_diabetic_readmission_data$tolazamide <- as.factor(new_diabetic_readmission_data$tolazamide)
+new_diabetic_readmission_data$examide <- as.factor(new_diabetic_readmission_data$examide)
+new_diabetic_readmission_data$citoglipton <- as.factor(new_diabetic_readmission_data$citoglipton)
+new_diabetic_readmission_data$insulin <- as.factor(new_diabetic_readmission_data$insulin)
+new_diabetic_readmission_data$glyburide.metformin <- as.factor(new_diabetic_readmission_data$glyburide.metformin)
+new_diabetic_readmission_data$glipizide.metformin <- as.factor(new_diabetic_readmission_data$glipizide.metformin)
+new_diabetic_readmission_data$glimepiride.pioglitazone <- as.factor(new_diabetic_readmission_data$glimepiride.pioglitazone)
+new_diabetic_readmission_data$metformin.rosiglitazone <- as.factor(new_diabetic_readmission_data$metformin.rosiglitazone)
+new_diabetic_readmission_data$metformin.pioglitazone <- as.factor(new_diabetic_readmission_data$metformin.pioglitazone)
+new_diabetic_readmission_data$change <- as.factor(new_diabetic_readmission_data$change)
+new_diabetic_readmission_data$diabetesMed <- as.factor(new_diabetic_readmission_data$diabetesMed)
+new_diabetic_readmission_data$readmitted <- as.factor(new_diabetic_readmission_data$readmitted)
+```
+
+```{r}
+str(new_diabetic_readmission_data)
+```
+
+```{r}
+#race 
+table(new_diabetic_readmission_data$race)
+```
+ 
+```{r}
+#gender
+table(new_diabetic_readmission_data$gender)
+```
+
+```{r}
+#gender
+
+#removing unknown/invalid
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("Unknown/Invalid", new_diabetic_readmission_data$gender), ]
+table(new_diabetic_readmission_data$gender)
+
+NROW(new_diabetic_readmission_data)
+#Decreases rows from 63692 to 63691
+```
+
+```{r}
+#Binarizing Variables - GENDER 
+
+#gender
+new_diabetic_readmission_data$gender <- as.factor(ifelse(new_diabetic_readmission_data$gender == "Male",1,0))
+table(new_diabetic_readmission_data$gender)
+```
+
+```{r}
+#age
+table(new_diabetic_readmission_data$age)
+```
+
+```{r}
+#max_glu_serum
+table(new_diabetic_readmission_data$max_glu_serum)
+```
+
+```{r}
+#Binarizing Variables - MAX_GLU_SERUM 
+
+#gender
+new_diabetic_readmission_data$max_glu_serum <- as.factor(ifelse(new_diabetic_readmission_data$max_glu_serum == ">200" |new_diabetic_readmission_data$max_glu_serum == ">300" | new_diabetic_readmission_data$max_glu_serum == "Norm",1,0))
+table(new_diabetic_readmission_data$max_glu_serum)
+```
+
+```{r}
+#A1Cresult
+table(new_diabetic_readmission_data$A1Cresult)
+```
+
+```{r}
+#Binarizing Variables - A1CRESULT
+
+#A1Cresult
+new_diabetic_readmission_data$A1Cresult <- as.factor(ifelse(new_diabetic_readmission_data$A1Cresult == ">7" |new_diabetic_readmission_data$A1Cresult == ">8" | new_diabetic_readmission_data$A1Cresult == "Norm",1,0))
+table(new_diabetic_readmission_data$A1Cresult)
+```
+
+Medicines 
+```{r}
+#ONE LEVEL (Total: 4)
+#examide, citoglipton, glimepiride.pioglitazone, metformin.rosiglitazone
+table(new_diabetic_readmission_data$examide)
+table(new_diabetic_readmission_data$citoglipton)
+table(new_diabetic_readmission_data$glimepiride.pioglitazone)
+table(new_diabetic_readmission_data$metformin.rosiglitazone)
+
+#ALL NO - Meaning no patients were prescribed any of these medications 
+```
+
+```{r}
+#Deleting above 4 Medications 
+new_diabetic_readmission_data <- new_diabetic_readmission_data[,!names(new_diabetic_readmission_data) %in% c('examide','citoglipton', 'glimepiride.pioglitazone', 'metformin.rosiglitazone')]
+str(new_diabetic_readmission_data)
+
+#Decreases columns from 49 to 45 
+```
+
+```{r}
+#TWO LEVELS (Total: 6)
+#acetohexamide, tolbutamide, troglitazone, tolazamide, glipizide.metformin, metformin.pioglitazone
+
+table(new_diabetic_readmission_data$acetohexamide) #Only 1 patient received this medication 
+table(new_diabetic_readmission_data$tolbutamide) #16 patients received this medication 
+table(new_diabetic_readmission_data$troglitazone) #2 patients received this medication
+table(new_diabetic_readmission_data$tolazamide) #24 patients received this medication
+table(new_diabetic_readmission_data$glipizide.metformin) #7 patients received this medication
+table(new_diabetic_readmission_data$metformin.pioglitazone) #Only 1 patient received this medication
+
+#GROUP HELP 
+```
+
+
+```{r}
+#Binarizing Variables - TWO LEVELS
+
+#acetohexamide
+new_diabetic_readmission_data$acetohexamide <- as.factor(ifelse(new_diabetic_readmission_data$acetohexamide == "Down"| new_diabetic_readmission_data$acetohexamide == "Steady" | new_diabetic_readmission_data$acetohexamide == "Up",1,0))
+
+#tolbutamide
+new_diabetic_readmission_data$tolbutamide <- as.factor(ifelse(new_diabetic_readmission_data$tolbutamide == "Down"| new_diabetic_readmission_data$tolbutamide == "Steady" | new_diabetic_readmission_data$tolbutamide == "Up",1,0))
+
+#troglitazone
+new_diabetic_readmission_data$troglitazone <- as.factor(ifelse(new_diabetic_readmission_data$troglitazone == "Down"| new_diabetic_readmission_data$troglitazone == "Steady" | new_diabetic_readmission_data$troglitazone == "Up",1,0))
+
+#tolazamide
+new_diabetic_readmission_data$tolazamide <- as.factor(ifelse(new_diabetic_readmission_data$tolazamide == "Down"| new_diabetic_readmission_data$tolazamide == "Steady" | new_diabetic_readmission_data$tolazamide == "Up",1,0))
+
+#glipizide.metformin
+new_diabetic_readmission_data$glipizide.metformin <- as.factor(ifelse(new_diabetic_readmission_data$glipizide.metformin == "Down"| new_diabetic_readmission_data$glipizide.metformin == "Steady" | new_diabetic_readmission_data$glipizide.metformin == "Up",1,0))
+
+#metformin.pioglitazone
+new_diabetic_readmission_data$metformin.pioglitazone <- as.factor(ifelse(new_diabetic_readmission_data$metformin.pioglitazone == "Down"| new_diabetic_readmission_data$metformin.pioglitazone == "Steady" | new_diabetic_readmission_data$metformin.pioglitazone == "Up",1,0))
+
+table(new_diabetic_readmission_data$acetohexamide) 
+table(new_diabetic_readmission_data$tolbutamide) 
+table(new_diabetic_readmission_data$troglitazone) 
+table(new_diabetic_readmission_data$tolazamide) 
+table(new_diabetic_readmission_data$glipizide.metformin) 
+table(new_diabetic_readmission_data$metformin.pioglitazone)
+```
+
+```{r}
+#THREE LEVELS (Total: 1)
+#acarbose
+table(new_diabetic_readmission_data$acarbose)
+```
+
+```{r}
+#Binarizing Variables - THREE LEVELS 
+
+#acarbose
+new_diabetic_readmission_data$acarbose <- as.factor(ifelse(new_diabetic_readmission_data$acarbose == "Down"| new_diabetic_readmission_data$acarbose == "Steady" | new_diabetic_readmission_data$acarbose == "Up",1,0))
+
+table(new_diabetic_readmission_data$acarbose) 
+```
+
+```{r}
+#FOUR LEVELS (Total: 12)
+#metformin, repaglinide, nateglinide, chlorpropamide, glimepiride, glipizide, glyburide, pioglitazone, rosiglitazone, miglitol, insulin, glyburide.metformin
+
+table(new_diabetic_readmission_data$metformin)
+table(new_diabetic_readmission_data$repaglinide)
+table(new_diabetic_readmission_data$nateglinide)
+table(new_diabetic_readmission_data$chlorpropamide)
+table(new_diabetic_readmission_data$glimepiride)
+table(new_diabetic_readmission_data$glipizide)
+table(new_diabetic_readmission_data$glyburide)
+table(new_diabetic_readmission_data$pioglitazone)
+table(new_diabetic_readmission_data$rosiglitazone)
+table(new_diabetic_readmission_data$miglitol)
+table(new_diabetic_readmission_data$insulin)
+table(new_diabetic_readmission_data$glyburide.metformin)
+```
+
+```{r}
+#Binarizing Variable - FOUR LEVELS 
+
+#metformin
+new_diabetic_readmission_data$metformin <- as.factor(ifelse(new_diabetic_readmission_data$metformin == "Down"| new_diabetic_readmission_data$metformin == "Steady" | new_diabetic_readmission_data$metformin == "Up",1,0))
+
+#repaglinide
+new_diabetic_readmission_data$repaglinide <- as.factor(ifelse(new_diabetic_readmission_data$repaglinide == "Down"| new_diabetic_readmission_data$repaglinide == "Steady" | new_diabetic_readmission_data$repaglinide == "Up",1,0))
+
+#nateglinide
+new_diabetic_readmission_data$nateglinide <- as.factor(ifelse(new_diabetic_readmission_data$nateglinide == "Down"| new_diabetic_readmission_data$nateglinide == "Steady" | new_diabetic_readmission_data$nateglinide == "Up",1,0))
+
+#chlorpropamide
+new_diabetic_readmission_data$chlorpropamide <- as.factor(ifelse(new_diabetic_readmission_data$chlorpropamide == "Down"| new_diabetic_readmission_data$chlorpropamide == "Steady" | new_diabetic_readmission_data$chlorpropamide == "Up",1,0))
+
+#glimepiride
+new_diabetic_readmission_data$glimepiride <- as.factor(ifelse(new_diabetic_readmission_data$glimepiride == "Down"| new_diabetic_readmission_data$glimepiride == "Steady" | new_diabetic_readmission_data$glimepiride == "Up",1,0))
+
+#glipizide
+new_diabetic_readmission_data$glipizide <- as.factor(ifelse(new_diabetic_readmission_data$glipizide == "Down"| new_diabetic_readmission_data$glipizide == "Steady" | new_diabetic_readmission_data$glipizide == "Up",1,0))
+
+#glyburide
+new_diabetic_readmission_data$glyburide <- as.factor(ifelse(new_diabetic_readmission_data$glyburide == "Down"| new_diabetic_readmission_data$glyburide == "Steady" | new_diabetic_readmission_data$glyburide == "Up",1,0))
+
+#pioglitazone
+new_diabetic_readmission_data$pioglitazone <- as.factor(ifelse(new_diabetic_readmission_data$pioglitazone == "Down"| new_diabetic_readmission_data$pioglitazone == "Steady" | new_diabetic_readmission_data$pioglitazone == "Up",1,0))
+
+#rosiglitazone
+new_diabetic_readmission_data$rosiglitazone <- as.factor(ifelse(new_diabetic_readmission_data$rosiglitazone == "Down"| new_diabetic_readmission_data$rosiglitazone == "Steady" | new_diabetic_readmission_data$rosiglitazone == "Up",1,0))
+
+#miglitol
+new_diabetic_readmission_data$miglitol <- as.factor(ifelse(new_diabetic_readmission_data$miglitol == "Down"| new_diabetic_readmission_data$miglitol == "Steady" | new_diabetic_readmission_data$miglitol == "Up",1,0))
+
+#insulin
+new_diabetic_readmission_data$insulin <- as.factor(ifelse(new_diabetic_readmission_data$insulin == "Down"| new_diabetic_readmission_data$insulin == "Steady" | new_diabetic_readmission_data$insulin == "Up",1,0))
+
+#glyburide.metformin
+new_diabetic_readmission_data$glyburide.metformin <- as.factor(ifelse(new_diabetic_readmission_data$glyburide.metformin == "Down"| new_diabetic_readmission_data$glyburide.metformin == "Steady" | new_diabetic_readmission_data$glyburide.metformin == "Up",1,0))
+
+table(new_diabetic_readmission_data$metformin) 
+table(new_diabetic_readmission_data$repaglinide) 
+table(new_diabetic_readmission_data$nateglinide) 
+table(new_diabetic_readmission_data$chlorpropamide) 
+table(new_diabetic_readmission_data$glimepiride) 
+table(new_diabetic_readmission_data$glipizide)
+table(new_diabetic_readmission_data$glyburide) 
+table(new_diabetic_readmission_data$pioglitazone) 
+table(new_diabetic_readmission_data$rosiglitazone) 
+table(new_diabetic_readmission_data$miglitol) 
+table(new_diabetic_readmission_data$insulin) 
+table(new_diabetic_readmission_data$glyburide.metformin)
+```
+
+```{r}
+#readmitted
+table(new_diabetic_readmission_data$readmitted)
+```
+
+```{r}
+#Binarizing Variables - READMITTED
+
+#readmitted
+new_diabetic_readmission_data$readmitted <- as.factor(ifelse(new_diabetic_readmission_data$readmitted == ">30" |new_diabetic_readmission_data$readmitted == "<30",1,0))
+table(new_diabetic_readmission_data$readmitted)
+```
+
+```{r}
+#change 
+table(new_diabetic_readmission_data$change)
+
+```
+```{r}
+#Binarizing Variables - CHANGE
+
+#change
+new_diabetic_readmission_data$change <- as.factor(ifelse(new_diabetic_readmission_data$change == "Ch",1,0))
+table(new_diabetic_readmission_data$change)
+```
+
+```{r}
+#diabetesMed
+table(new_diabetic_readmission_data$diabetesMed)
+```
+
+```{r}
+#Binarizing Variables - DIABETESMED
+new_diabetic_readmission_data$diabetesMed <- as.factor(ifelse(new_diabetic_readmission_data$diabetesMed == "No",1,0))
+table(new_diabetic_readmission_data$diabetesMed)
+```
+
+```{r}
+summary(new_diabetic_readmission_data)
+```
+
