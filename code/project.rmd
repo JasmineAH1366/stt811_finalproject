@@ -14,84 +14,17 @@ Libraries
 library(tidyverse)
 library(ggcorrplot)
 library(GGally)
-library(naniar)
-library(DT)
 ```
 Data
 ```{r}
 diabetic_readmission_data <- read.csv("../data/diabetic_data_initial.csv")
-data_size<- NROW(diabetic_readmission_data)
+table(diabetic_readmission_data$readmitted)
 ```
-
-Show the data
-```{r}
-datatable(t(head((diabetic_readmission_data))))
-```
-
-### Data Cleaning
-
-## Missing values: 
+## Removing dead or hospice patients
 
 ```{r}
-diabetic_readmission_data <- diabetic_readmission_data %>% mutate(across(where(is.character), ~na_if(., "?")))
-gg_miss_var(diabetic_readmission_data[, colSums(is.na(diabetic_readmission_data)) > 0] , show_pct=T) + labs(x ="features", y = "Missing values in the dataset") + theme_bw()
-```
-
-
-## Handling Missing Values: 
-
-- Drop weight, medical_speciality, payer_code; the enitre column.
-- Remove the rows of diag_3, diag_2, and diag_1
-- Impute by KNN
-
-### Data type-conversion
- This code maps the diagnosis values to the categories provides
-```{r}
-for (col in c('diag_1', 'diag_2', 'diag_3')) {
-  diabetic_readmission_data <- diabetic_readmission_data %>% 
-    mutate(new_col = case_when(
-      .data[[col]] %in%  c(390:459, 785) ~ 'Circulatory',
-      .data[[col]] %in%  c(460:519, 786) ~ 'Respiratory',
-      .data[[col]] %in%  c(520:579, 787) ~ 'Digestive',
-      .data[[col]] %in%  c(800:999) ~ 'Injury',
-      .data[[col]] %in%  c(710:739) ~ 'Musculoskeletal',
-      .data[[col]] %in%  c(580:629, 788) ~ 'Genitourinary',
-      .data[[col]] %in%  c(1:249, 251:279,680:709, 780:782, 784, 790:799, 782) ~ 'Neoplasms',
-       startsWith(.data[[col]], '250' ) ~'Diabetes',
-      .default = as.character('Other'))
-   ) %>% mutate(!!col := new_col) %>% select(-new_col)
-}
-
-diabetic_readmission_data$diag_1 <- as.factor(diabetic_readmission_data$diag_1)
-diabetic_readmission_data$diag_2 <- as.factor(diabetic_readmission_data$diag_2)
-diabetic_readmission_data$diag_3 <- as.factor(diabetic_readmission_data$diag_3)
-```
-### Changing categorical data to as factors;
-```{r}
-diabetic_readmission_data$encounter_id <- as.factor(diabetic_readmission_data$encounter_id)
-diabetic_readmission_data$patient_nbr <- as.factor(diabetic_readmission_data$patient_nbr)
-
-diabetic_readmission_data$race <- as.factor(diabetic_readmission_data$race)
-diabetic_readmission_data$gender <- as.factor(diabetic_readmission_data$gender)
-diabetic_readmission_data$age <- as.factor(diabetic_readmission_data$age)
-
-diabetic_readmission_data$admission_type_id <- as.factor(diabetic_readmission_data$admission_type_id)
-diabetic_readmission_data$discharge_disposition_id <- as.factor(diabetic_readmission_data$discharge_disposition_id)
-diabetic_readmission_data$admission_source_id <- as.factor(diabetic_readmission_data$admission_source_id)
-diabetic_readmission_data$medical_specialty <- as.factor(diabetic_readmission_data$medical_specialty)
-
-for (i in c(23:NCOL(diabetic_readmission_data))) {
-  diabetic_readmission_data[, i] <- as.factor(diabetic_readmission_data[, i])
-}
-```
-
-## Removing dead or hospice patients; remove the repeated patients only (only keep the first encounter)
-```{r}
-dead_hospice <- c(11,13,14,19,20,21,18,25,26)
-diabetic_readmission_data_iid <- diabetic_readmission_data %>%
-  group_by(by =patient_nbr) %>%
-  arrange(encounter_id) %>%
-  slice(1) %>%
+dead_hospice <- c(11, 13, 14, 19, 20, 21)
+diabetic_readmission_data <- diabetic_readmission_data %>%
   filter(!discharge_disposition_id %in% dead_hospice)
 ```
 
@@ -101,52 +34,10 @@ diabetic_readmission_data_iid <- diabetic_readmission_data %>%
 --> NO: 0
 
 ```{r}
-table(diabetic_readmission_data_iid$readmitted)
+diabetic_readmission_data$y <- as.factor(ifelse(diabetic_readmission_data$readmitted == '<30' | 
+         diabetic_readmission_data$readmitted == '>30', 1,0))
+table(diabetic_readmission_data$y)
 ```
-
-## Univariate distributions
-### Distributions for each numerical feature in the dataset
-```{r}
-data<- diabetic_readmission_data[, unlist(lapply(diabetic_readmission_data, is.factor))]
-col_names <- names(data)
-nums_subplots <- 8
-for (col_s in seq(1, NCOL(data), nums_subplots )) {
-  long_data <- pivot_longer(data[, seq(col_s:min(col_s+8, 40))], col_names[seq(col_s:min(col_s+8, 40))],
-               names_to="features",
-               values_to="values")
-  g <- ggplot(long_data, aes(x=values, fill=features)) 
-  g + geom_histogram(stat='count') + 
-    facet_wrap(~ features, scales = "free") + 
-    ggtitle("Categorical Features Distribution") + coord_flip() + 
-    scale_y_continuous(breaks = scales::pretty_breaks(n=5)) +
-    theme(legend.position = "top", strip.text.x = element_blank(),
-                        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  print(g)
-}
-```
-
-```{r}
-data<- diabetic_readmission_data[, unlist(lapply(diabetic_readmission_data, is.numeric))]
-col_names <- names(data)
-nums_subplots <- 8
-for (col_s in seq(1, NCOL(data), nums_subplots )) {
-  long_data <- pivot_longer(data[, seq(col_s:min(col_s+8, 40))], col_names[seq(col_s:min(col_s+8, 40))],
-               names_to="features",
-               values_to="values")
-  g <- ggplot(long_data, aes(x=values, fill=features)) 
-  g + geom_histogram(stat='count') + 
-    facet_wrap(~ features, scales = "free") + 
-    ggtitle("Categorical Features Distribution") + coord_flip() + 
-    scale_y_continuous(breaks = scales::pretty_breaks(n=5)) +
-    theme(legend.position = "top", strip.text.x = element_blank(),
-                        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
-  print(g)
-}
-
-```
-
-
-
 ### Correlation for each class:
 
 ```{r}
@@ -165,20 +56,20 @@ ggcorrplot(cor(n_[col_names]))
 ```
 
 ```{r}
+col_names <- append(col_names,"y")
 ggpairs(diabetic_readmission_data, columns=col_names, aes(color = y, alpha = 0.5))
 ```
 
-<<<<<<< Updated upstream
 ## Categorical Variables 
 ```{r}
 str(diabetic_readmission_data)
 ```
 
 ```{r}
-medicine1 <- c("metformin","repaglinide","nateglinide","chlorpropamide","glimepiride","acetohexamide")
-medicine2 <- c("glipizide","glyburide","tolbutamide","pioglitazone","rosiglitazone","acarbose")
-medicine3 <- c("miglitol","troglitazone","tolazamide","examide","citoglipton","insulin")
-medicine4 <- c("glyburide.metformin","glipizide.metformin","glimepiride.pioglitazone","metformin.rosiglitazone","metformin.pioglitazone")
+medicine1 <- c("metformin","repaglinide","nateglinide","chlorpropamide","glimepiride","acetohexamide","y")
+medicine2 <- c("glipizide","glyburide","tolbutamide","pioglitazone","rosiglitazone","acarbose","y")
+medicine3 <- c("miglitol","troglitazone","tolazamide","examide","citoglipton","insulin","y")
+medicine4 <- c("glyburide.metformin","glipizide.metformin","glimepiride.pioglitazone","metformin.rosiglitazone","metformin.pioglitazone","y")
 ggpairs(diabetic_readmission_data, columns=medicine1, aes(color = y, alpha = 0.5))
 ggpairs(diabetic_readmission_data, columns=medicine2, aes(color = y, alpha = 0.5))
 ggpairs(diabetic_readmission_data, columns=medicine3, aes(color = y, alpha = 0.5))
@@ -210,19 +101,14 @@ length(diabetic_readmission_data$diag_3)
 #new_diabetic_readmission_data <- subset(diabetic_readmission_data, select = -c(diag_3))
 
 #To remove the rows:
-#new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_3), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_3), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_2), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_1), ]
+new_diabetic_readmission_data
 
-
-
-=======
-## Age, race
-```{r}
-## overall age
-ggplot(diabetic_readmission_data, aes(x=age, fill=y)) + geom_bar() +coord_flip()
-
-## age
-ggplot(diabetic_readmission_data, aes(x=race, fill=y)) + geom_bar() +coord_flip()
->>>>>>> Stashed changes
+sum(grepl("\\?", new_diabetic_readmission_data$diag_3))
+sum(grepl("\\?", new_diabetic_readmission_data$diag_1))
+sum(grepl("\\?", new_diabetic_readmission_data$diag_2))
 
 ```
 #log transformation of numerical variables 
@@ -233,7 +119,6 @@ ggplot(diabetic_readmission_data, aes(x=race, fill=y)) + geom_bar() +coord_flip(
 num_data <- select_if(new_diabetic_readmission_data, is.numeric)
 apply(num_data, 2, skewness)
 
-<<<<<<< Updated upstream
 diabetic_readmission_transformations <- new_diabetic_readmission_data %>%
   mutate(log_time_in_hospital = log(time_in_hospital),
          log_num_lab_procedures = log(num_lab_procedures),
@@ -247,12 +132,6 @@ diabetic_readmission_transformations
          
 ```
  
-=======
-```{r}
-## overall diag1
-table(diabetic_readmission_data$diag_1)
-```
->>>>>>> Stashed changes
 
 References: 
 
