@@ -23,9 +23,15 @@ table(diabetic_readmission_data$readmitted)
 ## Removing dead or hospice patients
 
 ```{r}
-dead_hospice <- c(11, 13, 14, 19, 20, 21)
+## Removing dead or hospice patients; remove the repeated patients only (only keep the first encounter)
+
+dead_hospice <- c(11,13,14,19,20,21,18,25,26)
 diabetic_readmission_data <- diabetic_readmission_data %>%
+  group_by(by =patient_nbr) %>%
+  arrange(encounter_id) %>%
+  slice(1) %>%
   filter(!discharge_disposition_id %in% dead_hospice)
+
 ```
 
 ## Convert the data into admitted or not admitted category
