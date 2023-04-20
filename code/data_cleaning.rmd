@@ -8,6 +8,10 @@ output:
     df_print: paged
   pdf_document: default
 ---
+```{r}
+#install.packages('naniar')
+#install.packages('DT')
+```
 
 Libraries
 ```{r}
@@ -52,7 +56,7 @@ gg_miss_var(diabetic_readmission_data[, colSums(is.na(diabetic_readmission_data)
 for (col in c('diag_1', 'diag_2', 'diag_3')) {
   diabetic_readmission_data <- diabetic_readmission_data %>% 
     mutate(new_col = case_when(
-      .data[[col]] %in%  c(:459,390 785) ~ 'Circulatory',
+      .data[[col]] %in%  c(390:459, 785) ~ 'Circulatory',
       .data[[col]] %in%  c(460:519, 786) ~ 'Respiratory',
       .data[[col]] %in%  c(520:579, 787) ~ 'Digestive',
       .data[[col]] %in%  c(800:999) ~ 'Injury',
@@ -165,6 +169,9 @@ numeric_data <- diabetic_readmission_data_iid %>% filter(y == 1)
 ggcorrplot(cor(numeric_data[col_names]))
 ```
 
+```{r}
+View(diabetic_readmission_data_iid)
+```
 
 
 

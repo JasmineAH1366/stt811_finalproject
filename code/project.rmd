@@ -19,7 +19,9 @@ Data
 ```{r}
 diabetic_readmission_data <- read.csv("../data/diabetic_data_initial.csv")
 table(diabetic_readmission_data$readmitted)
-```
+View(diabetic_readmission_data)
+data_size<- NROW(diabetic_readmission_data)
+
 ## Removing dead or hospice patients
 
 ```{r}
@@ -86,7 +88,7 @@ ggpairs(diabetic_readmission_data, columns=medicine4, aes(color = y, alpha = 0.5
 #Removing weight, payer code, and medical speciality features because they are missing a lot of data
 ```{r}
 #Removing weight, payer code, and medical specialty features
-new_diabetic_readmission_data <- subset(diabetic_readmission_data, select = -c(weight, payer_code, medical_specialty))
+new_diabetic_readmission_data <- subset(diabetic_readmission_data_iid, select = -c(weight, payer_code, medical_specialty))
 #new_diabetic_readmission_data #verifying those columns are gone
 ```
 #code checking/removing missing values from diagnoses 3. I commented it out for now because I would like to discuss this with the group. 
@@ -112,9 +114,25 @@ new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new
 new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_1), ]
 new_diabetic_readmission_data
 
+#To remove race '?'
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$race), ]
+new_diabetic_readmission_data
+
 sum(grepl("\\?", new_diabetic_readmission_data$diag_3))
 sum(grepl("\\?", new_diabetic_readmission_data$diag_1))
 sum(grepl("\\?", new_diabetic_readmission_data$diag_2))
+sum(grepl("\\?", new_diabetic_readmission_data$race))
+
+
+```
+## Age, race
+```{r}
+## overall age
+ggplot(diabetic_readmission_data, aes(x=age, fill=y)) + geom_bar() +coord_flip()
+
+## age
+ggplot(diabetic_readmission_data, aes(x=race, fill=y)) + geom_bar() +coord_flip()
+
 
 ```
 #log transformation of numerical variables 
@@ -138,6 +156,10 @@ diabetic_readmission_transformations
          
 ```
  
+
+```{r}
+table(diabetic_readmission_data$metformin)
+```
 
 References: 
 
