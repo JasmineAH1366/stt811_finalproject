@@ -14,15 +14,19 @@ Libraries
 library(tidyverse)
 library(ggcorrplot)
 library(GGally)
+library(moments)
 ```
 Data
 ```{r}
 diabetic_readmission_data <- read.csv("../data/diabetic_data_initial.csv")
 table(diabetic_readmission_data$readmitted)
-View(diabetic_readmission_data)
+#View(diabetic_readmission_data)
 data_size<- NROW(diabetic_readmission_data)
-
 ## Removing dead or hospice patients
+
+## convert diag values
+diabetic_readmission_data<- convert_diags(diabetic_readmission_data)
+```
 
 ```{r}
 ## Removing dead or hospice patients; remove the repeated patients only (only keep the first encounter)
@@ -33,7 +37,6 @@ diabetic_readmission_data <- diabetic_readmission_data %>%
   arrange(encounter_id) %>%
   slice(1) %>%
   filter(!discharge_disposition_id %in% dead_hospice)
-
 ```
 
 ## Convert the data into admitted or not admitted category
@@ -42,9 +45,9 @@ diabetic_readmission_data <- diabetic_readmission_data %>%
 --> NO: 0
 
 ```{r}
-diabetic_readmission_data$y <- as.factor(ifelse(diabetic_readmission_data$readmitted == '<30' | 
-         diabetic_readmission_data$readmitted == '>30', 1,0))
-table(diabetic_readmission_data$y)
+#diabetic_readmission_data$y <- as.factor(ifelse(diabetic_readmission_data$readmitted == '<30' | 
+#         diabetic_readmission_data$readmitted == '>30', 1,0))
+#table(diabetic_readmission_data$y)
 ```
 ### Correlation for each class:
 
@@ -68,7 +71,7 @@ col_names <- append(col_names,"y")
 ggpairs(diabetic_readmission_data, columns=col_names, aes(color = y, alpha = 0.5))
 ```
 
-## Categorical Variables 
+## Visualizing Categorical Variables
 ```{r}
 str(diabetic_readmission_data)
 ```
@@ -84,15 +87,14 @@ ggpairs(diabetic_readmission_data, columns=medicine3, aes(color = y, alpha = 0.5
 ggpairs(diabetic_readmission_data, columns=medicine4, aes(color = y, alpha = 0.5))
 
 ```
-##Variable Transformations
+## Numerical Variables Transformations
 #Removing weight, payer code, and medical speciality features because they are missing a lot of data
 ```{r}
 #Removing weight, payer code, and medical specialty features
-new_diabetic_readmission_data <- subset(diabetic_readmission_data_iid, select = -c(weight, payer_code, medical_specialty))
+new_diabetic_readmission_data <- subset(diabetic_readmission_data, select = -c(weight, payer_code, medical_specialty))
 #new_diabetic_readmission_data #verifying those columns are gone
-```
+
 #code checking/removing missing values from diagnoses 3. I commented it out for now because I would like to discuss this with the group. 
-```{r}
 #checking out many missing values are in diag_3 column 
 sum(grepl("\\?", diabetic_readmission_data$diag_3))
 sum(grepl("\\?", diabetic_readmission_data$diag_1))
@@ -103,8 +105,6 @@ length(diabetic_readmission_data$diag_3)
 #356 rows are missing from diag_2
 #20 rows are missing from diag 1
 
-
-
 #To remove the entire column: 
 #new_diabetic_readmission_data <- subset(diabetic_readmission_data, select = -c(diag_3))
 
@@ -112,6 +112,7 @@ length(diabetic_readmission_data$diag_3)
 new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_3), ]
 new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_2), ]
 new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_1), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$race), ]
 new_diabetic_readmission_data
 
 #To remove race '?'
@@ -122,26 +123,17 @@ sum(grepl("\\?", new_diabetic_readmission_data$diag_3))
 sum(grepl("\\?", new_diabetic_readmission_data$diag_1))
 sum(grepl("\\?", new_diabetic_readmission_data$diag_2))
 sum(grepl("\\?", new_diabetic_readmission_data$race))
-
-
 ```
-## Age, race
+### Categorical Variables Transformations
 ```{r}
-## overall age
-ggplot(diabetic_readmission_data, aes(x=age, fill=y)) + geom_bar() +coord_flip()
-
-## age
-ggplot(diabetic_readmission_data, aes(x=race, fill=y)) + geom_bar() +coord_flip()
-
-
+source('FeatureEngineering.R', local = knitr::knit_global())
 ```
+
 #log transformation of numerical variables 
 #Purpose: normalizing dataset. reduce knewness of a measurement variable.
 ```{r}
-#install.packages("moments")
-#library(moments)
 num_data <- select_if(new_diabetic_readmission_data, is.numeric)
-apply(num_data, 2, skewness)
+#apply(num_data, 2, skewness)
 
 diabetic_readmission_transformations <- new_diabetic_readmission_data %>%
   mutate(log_time_in_hospital = log(time_in_hospital),
@@ -153,14 +145,9 @@ diabetic_readmission_transformations <- new_diabetic_readmission_data %>%
          log_num_inpatient = log(number_inpatient + 1),
          log_num_diagnoses = log(number_diagnoses))
 diabetic_readmission_transformations
-         
 ```
  
-
-```{r}
-table(diabetic_readmission_data$metformin)
-```
-
+ 
 References: 
 
 1. http://www.sthda.com/english/wiki/ggcorrplot-visualization-of-a-correlation-matrix-using-ggplot2

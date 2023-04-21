@@ -37,7 +37,7 @@ datatable(t(head((diabetic_readmission_data))))
 ## Missing values: 
 
 ```{r}
-diabetic_readmission_data <- diabetic_readmission_data %>% mutate(across(where(is.character), ~na_if(., "?")))
+#diabetic_readmission_data <- diabetic_readmission_data %>% mutate(across(where(is.character), ~na_if(., "?")))
 gg_miss_var(diabetic_readmission_data[, colSums(is.na(diabetic_readmission_data)) > 0] , show_pct=T) + 
   labs(x ="features", y = "Missing values in the dataset") + 
   theme_bw()
@@ -53,24 +53,28 @@ gg_miss_var(diabetic_readmission_data[, colSums(is.na(diabetic_readmission_data)
 ### Data type-conversion
  This code maps the diagnosis values to the categories provides
 ```{r}
-for (col in c('diag_1', 'diag_2', 'diag_3')) {
-  diabetic_readmission_data <- diabetic_readmission_data %>% 
-    mutate(new_col = case_when(
-      .data[[col]] %in%  c(390:459, 785) ~ 'Circulatory',
-      .data[[col]] %in%  c(460:519, 786) ~ 'Respiratory',
-      .data[[col]] %in%  c(520:579, 787) ~ 'Digestive',
-      .data[[col]] %in%  c(800:999) ~ 'Injury',
-      .data[[col]] %in%  c(710:739) ~ 'Musculoskeletal',
-      .data[[col]] %in%  c(580:629, 788) ~ 'Genitourinary',
-      .data[[col]] %in%  c(1:249, 251:279,680:709, 780:782, 784, 790:799, 782) ~ 'Neoplasms',
-       startsWith(.data[[col]], '250' ) ~'Diabetes',
-      .default = as.character('Other'))
-   ) %>% mutate(!!col := new_col) %>% select(-new_col)
+convert_diags <- function(diabetic_data) {
+  for (col in c('diag_1', 'diag_2', 'diag_3')) {
+    print(col)
+    diabetic_data <- diabetic_data %>% 
+      mutate(new_col = case_when(
+        .data[[col]] %in%  c(390:459, 785) ~ 'Circulatory',
+        .data[[col]] %in%  c(460:519, 786) ~ 'Respiratory',
+        .data[[col]] %in%  c(520:579, 787) ~ 'Digestive',
+        .data[[col]] %in%  c(800:999) ~ 'Injury',
+        .data[[col]] %in%  c(710:739) ~ 'Musculoskeletal',
+        .data[[col]] %in%  c(580:629, 788) ~ 'Genitourinary',
+        .data[[col]] %in%  c(1:249, 251:279,680:709, 780:782, 784, 790:799, 782) ~ 'Neoplasms',
+         startsWith(.data[[col]], '250' ) ~'Diabetes',
+        .default = as.character('Other'))
+     ) %>% mutate(!!col := new_col) %>% select(-new_col)
+  }
+  
+  diabetic_data$diag_1 <- as.factor(diabetic_data$diag_1)
+  diabetic_data$diag_2 <- as.factor(diabetic_data$diag_2)
+  diabetic_data$diag_3 <- as.factor(diabetic_data$diag_3)
+  return (diabetic_data)
 }
-
-diabetic_readmission_data$diag_1 <- as.factor(diabetic_readmission_data$diag_1)
-diabetic_readmission_data$diag_2 <- as.factor(diabetic_readmission_data$diag_2)
-diabetic_readmission_data$diag_3 <- as.factor(diabetic_readmission_data$diag_3)
 ```
 ### Changing categorical data to as factors;
 ```{r}
@@ -106,9 +110,6 @@ diabetic_readmission_data_iid <- diabetic_readmission_data %>%
 --> <30, >30 : 1
 --> NO: 0
 
-```{r}
-diabetic_readmission_data_iid$y <- as.factor(ifelse(diabetic_readmission_data_iid$readmitted == '<30', 1, 0))
-```
 
 ## Univariate distributions
 ### Distributions for each numerical feature in the dataset
@@ -133,7 +134,7 @@ for (col_s in seq(1, NCOL(data), nums_subplots )) {
 ```
 
 ```{r}
-data<- diabetic_readmission_data_iid[, unlist(lapply(diabetic_readmission_data_iid, is.numeric))]
+data<- diabetic_readmission_data_iid[, unlist(lapply(diabetic_readmission_data, is.numeric))]
 col_names <- names(data)
 nums_subplots <- 9
 for (col_s in seq(1, NCOL(data), nums_subplots )) {

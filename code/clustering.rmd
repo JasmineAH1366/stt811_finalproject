@@ -16,10 +16,95 @@ library(ggcorrplot)
 library(GGally)
 library(naniar)
 library(DT)
+library(caret)
+library(pROC)
 ```
 
 ```{r}
-diabetic_readmission_data_numeric <-diabetic_readmission_data_iid[, unlist(lapply(diabetic_readmission_data_iid, is.numeric))]
-diabetic_readmission_data_numeric
+summary(new_diabetic_readmission_data)
 ```
+
+### Dropping the columns of medicine with low balance in each class <100
+```{r}
+
+remove_unbalanced_categorical_values <- function(data, lowest) {
+  col_names <- names(data)[sapply(data, is.numeric)]
+  
+  factor_names <- names(data)[unlist(lapply(data, is.factor))]
+  
+  factor_counts <- lapply(data[, factor_names, drop = FALSE], table)
+  factor_names <- factor_names[sapply(factor_counts, function(x) all(x >= lowest))]
+  
+  return ( data[, c(col_names, factor_names)] )
+} 
+## getting the med combinations (All the medicines that were either Steady, Up, Down)
+find_treatment_combination <- function(data) {
+  medicines <- c("glipizide", "insulin", "metformin", "glyburide", "glyburide.metformin", "pioglitazone", "repaglinide", "nateglinide", "rosiglitazone", "acarbose", "glimepiride")
+  
+  combinations <- apply(data[,medicines], 1, function(row) {
+    sorted_medicines <- sort(medicines[row == 1])
+    paste0(sorted_medicines, collapse = "-")
+  })
+  return(combinations)
+}
+
+new_diabetic_readmission_data_reduce_low_cat <- remove_unbalanced_categorical_values(new_diabetic_readmission_data, 100)
+```
+
+## Model 2: < 30; >30
+```{r}
+data <- new_diabetic_readmission_data_reduce_low_cat
+data$y <- ifelse(data$readmitted == '<30', 1, ifelse(data$readmitted=='>30', 0, NA))
+new_diabetic_readmission_data_reduce_low_cat_mod <- data[!is.na(data$y), ]
+```
+
+#### Data Splitting
+```{r}
+y <- new_diabetic_readmission_data_reduce_low_cat$y
+trainIdx <- createDataPartition(y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+## 2 Model
+y <- new_diabetic_readmission_data_reduce_low_cat_mod$y
+trainIdx <- createDataPartition(y, 0.7)$Resample1
+trainDataMod <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+testDataMod <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+```
+### Logistic Regression Model
+
+-- Data Transformation: 
+
+```{r}
+logit <- glm(y ~ . -encounter_id - patient_nbr - admission_type_id - discharge_disposition_id - readmitted, data = trainData, 
+             family = "binomial", na.action = na.omit)
+summary(logit)
+mod_logit2 <- glm(y ~ . -encounter_id - patient_nbr - admission_type_id - discharge_disposition_id - readmitted, data = trainDataMod, 
+             family = "binomial", na.action = na.omit)
+summary(mod_logit2)
+```
+
+### Accuracy For Logistic Regression
+```{r}
+confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0)))
+```
+
+```{r}
+confusionMatrix(testDataMod$y, as.factor(ifelse(predict(mod_logit2, testDataMod, type="response")> 0.5, 1, 0)))
+```
+```{r}
+par(pty="s")
+roc_lg <- roc(testData$y ~ predict(logit, testData, type="response"), plot = TRUE, print.auc = TRUE, main="ROC curve of logistic regression")
+roc_lg2 <- roc(testDataMod$y ~ predict(mod_logit2, testDataMod, type="response"), plot = TRUE, print.auc = TRUE, main="ROC curve of logistic regression")
+```
+
+
+
+### Medicine Combinations 
+```{r}
+new_diabetic_readmission_data_reduce_low_cat$med_combs<- as.factor(find_treatment_combination(new_diabetic_readmission_data_reduce_low_cat))
+```
+
+
+
 
