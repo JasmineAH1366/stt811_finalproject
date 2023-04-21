@@ -26,29 +26,26 @@ summary(new_diabetic_readmission_data)
 
 ### Dropping the columns of medicine with low balance in each class <100
 ```{r}
+new_diabetic_readmission_data
 
-remove_unbalanced_categorical_values <- function(data, lowest) {
-  col_names <- names(data)[sapply(data, is.numeric)]
-  
-  factor_names <- names(data)[unlist(lapply(data, is.factor))]
-  
-  factor_counts <- lapply(data[, factor_names, drop = FALSE], table)
-  factor_names <- factor_names[sapply(factor_counts, function(x) all(x >= lowest))]
-  
-  return ( data[, c(col_names, factor_names)] )
-} 
-## getting the med combinations (All the medicines that were either Steady, Up, Down)
-find_treatment_combination <- function(data) {
-  medicines <- c("glipizide", "insulin", "metformin", "glyburide", "glyburide.metformin", "pioglitazone", "repaglinide", "nateglinide", "rosiglitazone", "acarbose", "glimepiride")
-  
-  combinations <- apply(data[,medicines], 1, function(row) {
-    sorted_medicines <- sort(medicines[row == 1])
-    paste0(sorted_medicines, collapse = "-")
-  })
-  return(combinations)
-}
+## 15 combs: other -> 
+## treatment_regimen: 15266(0), Treated (1)
+
+## Remove unbalance categories; if the minimimun category has values <100, the entire medicine is removed.
 
 new_diabetic_readmission_data_reduce_low_cat <- remove_unbalanced_categorical_values(new_diabetic_readmission_data, 100)
+
+## Finding all medicine combinations
+combinations <- find_treatment_combination(new_diabetic_readmission_data)
+## Regrouping medicine combinations if they are atleast 900> patients with that drug combinations
+
+new_diabetic_readmission_data_reduce_low_cat$med_combs <- recategorize_drug_comb(combinations)
+
+### Treated patients: Return 0 if patients not treated, 1 if not treated. 
+new_diabetic_readmission_data_reduce_low_cat$treated <- patients_treated_with_any_drugs(new_diabetic_readmission_data, medicines)
+
+### patients treated with banned drugs (Based on the research)
+new_diabetic_readmission_data_reduce_low_cat$treated_banned_drugs <- treated_with_banned(new_diabetic_readmission_data, discontinued_medicines)
 ```
 
 ## Model 2: < 30; >30
@@ -73,14 +70,12 @@ testDataMod <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
 ```
 ### Logistic Regression Model
 
--- Data Transformation: 
-
 ```{r}
-logit <- glm(y ~ . -encounter_id - patient_nbr - admission_type_id - discharge_disposition_id - readmitted, data = trainData, 
-             family = "binomial", na.action = na.omit)
+logit <- glm(y ~ . -encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-treated, data = trainData, family = "binomial", na.action = na.omit)
 summary(logit)
-mod_logit2 <- glm(y ~ . -encounter_id - patient_nbr - admission_type_id - discharge_disposition_id - readmitted, data = trainDataMod, 
-             family = "binomial", na.action = na.omit)
+mod_logit2 <- glm(y ~ . -encounter_id 
+            - patient_nbr - admission_type_id - discharge_disposition_id - readmitted - admission_type_id-treated, data = trainDataMod,  family = "binomial", na.action = na.omit)
 summary(mod_logit2)
 ```
 
@@ -90,7 +85,8 @@ confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="resp
 ```
 
 ```{r}
-confusionMatrix(testDataMod$y, as.factor(ifelse(predict(mod_logit2, testDataMod, type="response")> 0.5, 1, 0)))
+confusionMatrix(testDataMod$y, as.factor(ifelse(predict(mod_logit2, 
+                                                        testDataMod, type="response")> 0.5, 1, 0)))
 ```
 ```{r}
 par(pty="s")

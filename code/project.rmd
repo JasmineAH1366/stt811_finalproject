@@ -15,8 +15,11 @@ library(tidyverse)
 library(ggcorrplot)
 library(GGally)
 library(moments)
+
+## source scripts:
+source('utils.R', local = knitr::knit_global())
 ```
-Data
+### Loading Data; Removing expired/hospice patients, and dependents samples
 ```{r}
 diabetic_readmission_data <- read.csv("../data/diabetic_data_initial.csv")
 table(diabetic_readmission_data$readmitted)
@@ -24,11 +27,9 @@ table(diabetic_readmission_data$readmitted)
 data_size<- NROW(diabetic_readmission_data)
 ## Removing dead or hospice patients
 
-## convert diag values
+## Converting diags to encoding provided in the paper:
 diabetic_readmission_data<- convert_diags(diabetic_readmission_data)
-```
 
-```{r}
 ## Removing dead or hospice patients; remove the repeated patients only (only keep the first encounter)
 
 dead_hospice <- c(11,13,14,19,20,21,18,25,26)
@@ -39,18 +40,7 @@ diabetic_readmission_data <- diabetic_readmission_data %>%
   filter(!discharge_disposition_id %in% dead_hospice)
 ```
 
-## Convert the data into admitted or not admitted category
-
---> <30, >30 : 1
---> NO: 0
-
-```{r}
-#diabetic_readmission_data$y <- as.factor(ifelse(diabetic_readmission_data$readmitted == '<30' | 
-#         diabetic_readmission_data$readmitted == '>30', 1,0))
-#table(diabetic_readmission_data$y)
-```
-### Correlation for each class:
-
+## Exploratory Data Analysis
 ```{r}
 col_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
 #View(col_names)
@@ -124,7 +114,7 @@ sum(grepl("\\?", new_diabetic_readmission_data$diag_1))
 sum(grepl("\\?", new_diabetic_readmission_data$diag_2))
 sum(grepl("\\?", new_diabetic_readmission_data$race))
 ```
-### Categorical Variables Transformations
+### Categorical Variables
 ```{r}
 source('FeatureEngineering.R', local = knitr::knit_global())
 ```
