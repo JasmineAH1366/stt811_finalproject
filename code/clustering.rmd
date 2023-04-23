@@ -18,34 +18,57 @@ library(naniar)
 library(DT)
 library(caret)
 library(pROC)
+library("imbalance")
+library(ROSE)
+source('utils.R', local = knitr::knit_global())
 ```
 
 ```{r}
-summary(new_diabetic_readmission_data)
+#summary(new_diabetic_readmission_data)
 ```
 
 ### Dropping the columns of medicine with low balance in each class <100
 ```{r}
-new_diabetic_readmission_data
-
 ## 15 combs: other -> 
 ## treatment_regimen: 15266(0), Treated (1)
+diabetic_bin_med_data <- binarize_medicines(new_diabetic_readmission_data)
 
 ## Remove unbalance categories; if the minimimun category has values <100, the entire medicine is removed.
+## remove all medicines where the levels are <100
+new_diabetic_readmission_data_reduce_low_cat <- remove_unbalanced_categorical_values(new_diabetic_readmission_data, 10)
 
-new_diabetic_readmission_data_reduce_low_cat <- remove_unbalanced_categorical_values(new_diabetic_readmission_data, 100)
+diabetic_bin_med_data <- remove_unbalanced_categorical_values(diabetic_bin_med_data, 10)
+col_names <- names(diabetic_bin_med_data)
+diabetic_bin_med_data <- diabetic_bin_med_data[, col_names[!(col_names %in% c("encounter_id", "patient_nbr", "readmitted"))]]
 
 ## Finding all medicine combinations
 combinations <- find_treatment_combination(new_diabetic_readmission_data)
 ## Regrouping medicine combinations if they are atleast 900> patients with that drug combinations
+med_combs <- recategorize_drug_comb(combinations)
 
-new_diabetic_readmission_data_reduce_low_cat$med_combs <- recategorize_drug_comb(combinations)
+new_diabetic_readmission_data_reduce_low_cat$med_combs <- med_combs
+diabetic_bin_med_data$med_combs <- med_combs
+
 
 ### Treated patients: Return 0 if patients not treated, 1 if not treated. 
-new_diabetic_readmission_data_reduce_low_cat$treated <- patients_treated_with_any_drugs(new_diabetic_readmission_data, medicines)
+#new_diabetic_readmission_data_reduce_low_cat$treated <- patients_treated_with_any_drugs(new_diabetic_readmission_data, medicines)
 
 ### patients treated with banned drugs (Based on the research)
-new_diabetic_readmission_data_reduce_low_cat$treated_banned_drugs <- treated_with_banned(new_diabetic_readmission_data, discontinued_medicines)
+#new_diabetic_readmission_data_reduce_low_cat$treated_banned_drugs <- treated_with_banned(new_diabetic_readmission_data, discontinued_medicines)
+
+write_csv(diabetic_bin_med_data, "/Users/lesiyonr/Library/CloudStorage/OneDrive-MichiganStateUniversity/stt811_readmission/data/diabetic_bin_med_data_final.csv")
+```
+
+
+```{r}
+data <- read_csv("/Users/lesiyonr/Library/CloudStorage/OneDrive-MichiganStateUniversity/stt811_readmission/data/diabetic_bin_med_data_final.csv")
+
+numerical_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
+all_numerical <- c(numerical_names, c("admission_type_id", "discharge_disposition_id", "admission_source_id"))
+
+cat_names <- names(data)[!(names(data) %in% all_numerical)]
+data[, cat_names] <- lapply(data[, cat_names], as.factor)
+
 ```
 
 ## Model 2: < 30; >30
@@ -55,50 +78,285 @@ data$y <- ifelse(data$readmitted == '<30', 1, ifelse(data$readmitted=='>30', 0, 
 new_diabetic_readmission_data_reduce_low_cat_mod <- data[!is.na(data$y), ]
 ```
 
-#### Data Splitting
+### Logistic Regression Model
+
+#### Without sampling for the data to cater for imbalanced data:
+
+Option 1:
+'<30' - 1
+'>30 | NO' - 0
 ```{r}
-y <- new_diabetic_readmission_data_reduce_low_cat$y
+set.seed(1)
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1,0))
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+Prevalence: 0.8857
+Model Accuracy: 0.8858
+> Thus the model is not better as guessing the classification as all prevalence in the class.
+
+Option 2: 
+'<30 | >30' - 1
+'NO' - 0
+```{r}
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted %in% c('<30', '>30'), 1,0))
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+Prevalence: 0.52255
+Model Accuracy: 0.6185
+> With,this the model performs better than guessing the most prevalent class.
+
+Option3: 
+```{r}
+y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1, ifelse(
+  new_diabetic_readmission_data_reduce_low_cat$readmitted == '>30', 0, NA
+)))
+new_diabetic_readmission_data_reduce_low_cat$y <- y
+data <- new_diabetic_readmission_data_reduce_low_cat[!is.na(y), ]
+print(max(table(data$y)/sum(table(data$y))))
+trainIdx <- createDataPartition(y, 0.7)$Resample1
+trainData <- data[trainIdx, ]
+testData <- data[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+Prevalence: 0.7605
+Accuracy: 0.7596 
+> The same as choosing the most prevalent class.
+
+### Oversampling the data:The data:
+
+Oversampling: ROSE, generating new synthetic datapoints
+Option1: '<30': 1 else: 0
+
+```{r}
+set.seed(1)
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1,0))
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+
+## oversampling
+trainData = ROSE(y ~ . -readmitted, data=trainData, seed=40943*2)$data
+
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+Option 2: No need of sampling: 
+
+```{r}
+set.seed(1)
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted %in% c('<30', '>30'), 1,0))
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
 trainIdx <- createDataPartition(y, 0.7)$Resample1
 trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
 testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
 
-## 2 Model
-y <- new_diabetic_readmission_data_reduce_low_cat_mod$y
+## oversampling
+trainData = ROSE(y ~ . -readmitted, data=trainData, seed=40943*2)$data
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+Option3: 
+```{r}
+set.seed(1)
+y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1, ifelse(
+  new_diabetic_readmission_data_reduce_low_cat$readmitted == '>30', 0, NA
+)))
+new_diabetic_readmission_data_reduce_low_cat$y <- y
+data <- new_diabetic_readmission_data_reduce_low_cat[!is.na(y), ]
+print(max(table(data$y)/sum(table(data$y))))
 trainIdx <- createDataPartition(y, 0.7)$Resample1
-trainDataMod <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
-testDataMod <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+trainData <- data[trainIdx, ]
+
+## oversampling
+trainData = ROSE(y ~ . -readmitted, data=trainData, seed=40943*2)$data
+
+testData <- data[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
 ```
-### Logistic Regression Model
+
+### Over-sampling 
 
 ```{r}
-logit <- glm(y ~ . -encounter_id 
-             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-treated, data = trainData, family = "binomial", na.action = na.omit)
-summary(logit)
-mod_logit2 <- glm(y ~ . -encounter_id 
-            - patient_nbr - admission_type_id - discharge_disposition_id - readmitted - admission_type_id-treated, data = trainDataMod,  family = "binomial", na.action = na.omit)
-summary(mod_logit2)
+set.seed(1)
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1,0))
+N <- max(table(new_diabetic_readmission_data_reduce_low_cat$y))*2
+
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
+
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
 ```
 
-### Accuracy For Logistic Regression
+<30, >30 : 1
+else: 0
 ```{r}
-confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0)))
-```
+set.seed(1)
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted %in% c('<30', '>30'), 1,0))
+N <- max(table(new_diabetic_readmission_data_reduce_low_cat$y))*2
 
-```{r}
-confusionMatrix(testDataMod$y, as.factor(ifelse(predict(mod_logit2, 
-                                                        testDataMod, type="response")> 0.5, 1, 0)))
-```
-```{r}
-par(pty="s")
-roc_lg <- roc(testData$y ~ predict(logit, testData, type="response"), plot = TRUE, print.auc = TRUE, main="ROC curve of logistic regression")
-roc_lg2 <- roc(testDataMod$y ~ predict(mod_logit2, testDataMod, type="response"), plot = TRUE, print.auc = TRUE, main="ROC curve of logistic regression")
-```
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
 
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
 
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id-med_combs, 
+             data = trainData, family = "binomial", na.action = na.omit)
+#print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
 
 ### Medicine Combinations 
+
 ```{r}
-new_diabetic_readmission_data_reduce_low_cat$med_combs<- as.factor(find_treatment_combination(new_diabetic_readmission_data_reduce_low_cat))
+new_diabetic_readmission_data_reduce_low_cat %>% group_by(med_combs, y) %>% summarize(total=n())
+```
+
+```{r}
+logistic_model <- function(group) {
+  model <- glm(y ~. -encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id-readmitted -admission_type_id-med_combs, data = group, family = binomial)
+  return(model)
+}
+groups <- split(new_diabetic_readmission_data_reduce_low_cat, list(new_diabetic_readmission_data_reduce_low_cat$med_combs))
+
+models <- lapply(groups, logistic_model)
+```
+
+### Using additional med comb variable.
+
+```{r}
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted %in% c('<30', '>30'), 1,0))
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id, 
+             data = trainData, family = "binomial", na.action = na.omit)
+print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+
+```{r}
+
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted %in% c('<30', '>30'), 1,0))
+N <- max(table(new_diabetic_readmission_data_reduce_low_cat$y))*2
+
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
+
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id, data = trainData, family = "binomial", na.action = na.omit)
+print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+
+```{r}
+set.seed(1)
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1,0))
+N <- max(table(new_diabetic_readmission_data_reduce_low_cat$y))*2
+
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
+
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - admission_type_id - discharge_disposition_id - readmitted -admission_type_id, data = trainData, family = "binomial", na.action = na.omit)
+print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+
+Combine No Med + Other
+```{r}
+set.seed(1)
+med_combs <- new_diabetic_readmission_data_reduce_low_cat$med_combs
+levels(med_combs)[levels(med_combs) == "NO_MED"] <- "Other"
+new_diabetic_readmission_data_reduce_low_cat$med_combs1 <- droplevels(med_combs)
+
+new_diabetic_readmission_data_reduce_low_cat$y <- as.factor(ifelse(new_diabetic_readmission_data_reduce_low_cat$readmitted == '<30', 1,0))
+N <- max(table(new_diabetic_readmission_data_reduce_low_cat$y))*2
+
+print(max(table(new_diabetic_readmission_data_reduce_low_cat$y)/sum(table(new_diabetic_readmission_data_reduce_low_cat$y))))
+trainIdx <- createDataPartition(new_diabetic_readmission_data_reduce_low_cat$y, 0.7)$Resample1
+trainData <- new_diabetic_readmission_data_reduce_low_cat[trainIdx, ]
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
+
+testData <- new_diabetic_readmission_data_reduce_low_cat[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - readmitted -admission_type_id - med_combs, data = trainData, family = "binomial", na.action = na.omit)
+print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
+```
+
+
+Binarizing the data into Medicine into 2
+
+```{r}
+set.seed(1)
+diabetic_bin_med_data$y <- as.factor(ifelse(diabetic_bin_med_data$readmitted == '<30', 1,0))
+N <- max(table(new_diabetic_readmission_data_reduce_low_cat$y))*2
+
+print(max(table(diabetic_bin_med_data$y)/sum(table(diabetic_bin_med_data$y))))
+trainIdx <- createDataPartition(diabetic_bin_med_data$y, 0.7)$Resample1
+trainData <- diabetic_bin_med_data[trainIdx, ]
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
+
+testData <- diabetic_bin_med_data[-trainIdx, ]
+
+logit <- glm(y ~ .-encounter_id 
+             - patient_nbr - readmitted -admission_type_id - med_combs, data = trainData, family = "binomial", na.action = na.omit)
+print(summary(logit))
+print(confusionMatrix(testData$y, as.factor(ifelse(predict(logit, testData, type="response")> 0.5, 1, 0))))
 ```
 
 
