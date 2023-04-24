@@ -1,0 +1,83 @@
+---
+title: "Random Forest"
+author: "Jasmine Harris"
+date: "4/23/2023"
+output: word_document
+---
+
+Libraries 
+```{r}
+library(tree)
+library(caret)
+```
+```{r}
+final_data <- read.csv("C:\\Users\\12058\\OneDrive\\Documents\\STT 811\\stt811_readmission\\data\\diabetic_bin_med_data_final.csv")
+View(final_data)
+```
+
+ONLY NUMERIC VARIABLES 
+```{r}
+numeric_data <- subset(final_data, select = -c(12:19,35:37,39))
+#View(numeric_data)
+#str(numeric_data)
+```
+```{r}
+#train/test split
+split_pct <- 0.7
+n <- length(numeric_data$y)*split_pct # train size
+row_samp <- sample(1:length(numeric_data$y), n, replace = FALSE)
+train <- numeric_data[row_samp,]
+test <- numeric_data[-row_samp,]
+
+dim(train)
+dim(test)
+
+prop.table(table(train$y))
+prop.table(table(test$y))
+
+#In both the test and train data sets, approximately 11% of people are readmitted and approximately 89% are NOT readmitted. 
+```
+
+```{r}
+diabetes_readmission_tree <- tree(y ~ ., data = train, method="class")
+diabetes_readmission_tree
+
+#Need help understanding output
+```
+```{r}
+plot(diabetes_readmission_tree)
+text(diabetes_readmission_tree)
+tree_pred <- predict(diabetes_readmission_tree, test)
+```
+```{r}
+set.seed(123)
+diabetes_table <- table(test$y, tree_pred)
+diabetes_table
+```
+
+```{r}
+set.seed(321)
+accuracy_test <- sum(diag(diabetes_table))/sum(diabetes_table)
+accuracy_test
+```
+
+Random Forest 
+
+Libraries 
+```{r}
+library(randomForest)
+```
+
+```{r}
+#NOTE: mtry must equal a number NOT greater than the number of predictors
+
+diabetes_readmission_rf <- randomForest(as.factor(y) ~ number_inpatient, data = train, mtry = 1, importance = TRUE, ntree = 1000, maxnodes = 4)
+
+rf_predict <- predict(diabetes_readmission_rf, test)
+rf_table <- table(rf_predict, test$y)
+rf_table
+
+accuracy_test_rf <- sum(diag(rf_table))/sum(rf_table)
+accuracy_test_rf
+```
+
