@@ -1,0 +1,78 @@
+```{r}
+library(caret)
+library(xgboost)
+```
+
+xgboost modelling
+```{r}
+diabetic_data <- read_csv("/Users/lesiyonr/Library/CloudStorage/OneDrive-MichiganStateUniversity/stt811_readmission/data/diabetic_non_bin.csv")
+
+numerical_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
+
+all_numerical <- c(numerical_names, c("encounter_id", "admission_type_id", "discharge_disposition_id", "admission_source_id", "patient_nbr"))
+
+cat_names <- names(diabetic_data)[!(names(data) %in% all_numerical)]
+diabetic_data[, cat_names] <- lapply(diabetic_data[, cat_names], as.factor)
+```
+
+### Data Splitting
+
+```{r}
+N <- max(table(diabetic_data$y))*2
+trainIdx <- createDataPartition(diabetic_data$y, 0.7)$Resample1
+trainData <- diabetic_data[trainIdx, ]
+
+trainData <- ovun.sample(y ~. -readmitted , trainData, method="both", N=N, p=0.5, seed=1)$data
+
+testData <- diabetic_data[-trainIdx, ]
+x_train <- trainData[, -c(36, 37)]
+x_test <- testData[, -c(36, 37)]
+```
+
+xgboost model
+
+```{r}
+diabetic_readmission_model <- xgboost(data = data.matrix(x_train), 
+                     nrounds = 100, 
+                     max_depth = 2, 
+                     eta = 0.3, 
+                     label = as.numeric(trainData$y)-1, objective = "binary:logistic")
+```
+
+```{r}
+pred <- predict(diabetic_readmission_model, data.matrix(x_test))
+confusionMatrix(as.factor(as.integer(2*pred)), as.factor(testData$y))
+```
+
+```{r}
+# create tuning grid
+tune_grid <- expand.grid(nrounds = seq(50,300, by = 50), max_depth = 1:4, eta = seq(.01, .3, by = 0.01), gamma=0, colsample_bytree=1, min_child_weight=1, subsample=1)
+
+y_train <- as.factor(trainData$y)
+
+tune_control <- caret::trainControl(
+  method = "cv", # cross-validation
+  number = 8, # with n folds 
+  #index = createFolds(tr_treated$Id_clean), # fix the folds
+  verboseIter = FALSE, # no training log
+  allowParallel = TRUE # FALSE for reproducible results 
+)
+
+xgb_tune <- caret::train(
+  x = x_train,
+  y = y_train,
+  trControl = tune_control,
+  tuneGrid = tune_grid,
+  method = "xgbTree",
+  verbose = TRUE,
+)
+
+tuneplot <- function(x, probs = .90) {
+  ggplot(x) +
+    coord_cartesian(ylim = c(quantile(xgb_tune$results$Accuracy, probs = probs), min(xgb_tune$results$Accuracy))) +
+    theme_bw()
+}
+
+tuneplot(xgb_tune)
+```
+
