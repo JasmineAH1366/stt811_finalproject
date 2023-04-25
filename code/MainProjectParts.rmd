@@ -1,0 +1,170 @@
+Libraries
+```{r}
+library(tidyverse)
+library(ggcorrplot)
+library(GGally)
+library(moments)
+
+## source scripts:
+source('utils.R', local = knitr::knit_global())
+
+```
+### Loading Data; Removing expired/hospice patients, and dependents samples
+```{r}
+### Numerical colnames:
+col_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
+
+diabetic_readmission_data <- read.csv("../data/diabetic_data_initial.csv")
+table(diabetic_readmission_data$readmitted)
+#View(diabetic_readmission_data)
+data_size<- NROW(diabetic_readmission_data)
+## Removing dead or hospice patients
+
+## Converting diags to encoding provided in the paper:
+#diabetic_readmission_data<- convert_diags(diabetic_readmission_data)
+
+## Removing dead or hospice patients; remove the repeated patients only (only keep the first encounter)
+
+dead_hospice <- c(11,13,14,19,20,21,18,25,26)
+diabetic_readmission_data <- diabetic_readmission_data %>%
+  #group_by(by =patient_nbr) %>%
+  #arrange(encounter_id) %>%
+  #slice(1) %>%
+  filter(!discharge_disposition_id %in% dead_hospice)
+
+## scale numerical data:
+#diabetic_readmission_data[, col_names] <- scale(diabetic_readmission_data[, col_names])
+
+## 
+diabetic_readmission_data$y <- ifelse(diabetic_readmission_data$readmitted %in% c("<30", ">30"), 1, 0)
+col_names <- append(col_names, "y")
+```
+
+
+
+```{r}
+#Removing weight, payer code, and medical specialty features
+new_diabetic_readmission_data <- subset(diabetic_readmission_data, select = -c(weight, payer_code))
+#new_diabetic_readmission_data #verifying those columns are gone
+
+new_diabetic_readmission_data[new_diabetic_readmission_data$medical_specialty == "?", "medical_specialty"] <- "UNK"
+### Encoding medical specialty
+top_occuring_speciality <- names(head(sort(table(as.factor(new_diabetic_readmission_data$medical_specialty)), decreasing=T), n=10))
+new_diabetic_readmission_data$medical_specialty <- as.factor(unlist(lapply(new_diabetic_readmission_data$medical_specialty, function(x) ifelse(x %in%top_occuring_speciality, x, 'Other'))))
+
+#code checking/removing missing values from diagnoses 3. I commented it out for now because I would like to discuss this with the group. 
+#checking out many missing values are in diag_3 column 
+sum(grepl("\\?", diabetic_readmission_data$diag_3))
+sum(grepl("\\?", diabetic_readmission_data$diag_1))
+sum(grepl("\\?", diabetic_readmission_data$diag_2))
+length(diabetic_readmission_data$diag_3)
+
+#1419 rows are missing from diag_3
+#356 rows are missing from diag_2
+#20 rows are missing from diag 1
+
+#To remove the entire column: 
+#new_diabetic_readmission_data <- subset(diabetic_readmission_data, select = -c(diag_3))
+
+#To remove the rows:
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_3), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_2), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$diag_1), ]
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$race), ]
+new_diabetic_readmission_data
+
+#To remove race '?'
+new_diabetic_readmission_data <- new_diabetic_readmission_data[!grepl("\\?", new_diabetic_readmission_data$race), ]
+new_diabetic_readmission_data
+
+sum(grepl("\\?", new_diabetic_readmission_data$diag_3))
+sum(grepl("\\?", new_diabetic_readmission_data$diag_1))
+sum(grepl("\\?", new_diabetic_readmission_data$diag_2))
+sum(grepl("\\?", new_diabetic_readmission_data$race))
+
+```
+
+
+```{r}
+#source('FeatureEngineering.R', local = knitr::knit_global())
+categorical_cols <- c("race", "gender", "age", "max_glu_serum", "A1Cresult", "metformin", "repaglinide", "nateglinide", "chlorpropamide", "glimepiride", "acetohexamide", "glipizide", "glyburide", "tolbutamide", "pioglitazone", "rosiglitazone", "acarbose",  "miglitol", "troglitazone", "tolazamide", "examide", "citoglipton", "insulin", "glyburide.metformin", "glipizide.metformin", "glimepiride.pioglitazone", "metformin.rosiglitazone", "metformin.pioglitazone", "change", "diabetesMed","readmitted")
+
+#new_diabetic_readmission_data[, categorical_cols] <- lapply(new_diabetic_readmission_data[, categorical_cols], as.factor)
+#new_diabetic_readmission_data$y <- as.factor(ifelse(new_diabetic_readmission_data$readmitted == '<30', 1,0))
+new_diabetic_readmission_data <- new_diabetic_readmission_data[,!names(new_diabetic_readmission_data) %in% c('examide','citoglipton', 'glimepiride.pioglitazone', 'metformin.rosiglitazone')]
+```
+
+
+```{r}
+binarize_medicines <- function(data){
+  medicines_to_bin <- c("acetohexamide", "tolbutamide", "troglitazone", "tolazamide", 
+                        "glipizide.metformin", "metformin.pioglitazone", "acarbose",
+                        "metformin", "repaglinide", "nateglinide", "chlorpropamide", 
+                        "glimepiride", "glipizide", "glyburide", "pioglitazone", 
+                        "rosiglitazone", "miglitol", "insulin", "glyburide.metformin")
+  
+  # Define a function to binarize variables
+  binarize <- function(x) {
+    as.factor(ifelse(x %in% c("Down", "Steady", "Up"), 1, 0))
+  }
+  
+  # Loop through the variables and apply the binarize function
+  for (var in medicines_to_bin) {
+    data[[var]] <- binarize(data[[var]])
+  }
+  
+  data$A1Cresult <- as.factor(ifelse(data$A1Cresult == ">7" |data$A1Cresult == ">8" | data$A1Cresult == "Norm",1,0))
+  data$max_glu_serum <- as.factor(ifelse(data$max_glu_serum == ">200" | data$max_glu_serum == ">300" | data$max_glu_serum == "Norm",1,0))
+  
+  return (data)
+}
+
+```
+
+```{r}
+## 15 combs: other -> 
+## treatment_regimen: 15266(0), Treated (1)
+diabetic_bin_med_data <- binarize_medicines(new_diabetic_readmission_data)
+
+diabetic_bin_med_data$y <- as.factor(diabetic_bin_med_data$y)
+
+## Remove unbalance categories; if the minimimun category has values <100, the entire medicine is removed.
+## remove all medicines where the levels are <100
+#new_diabetic_readmission_data_reduce_low_cat <- #remove_unbalanced_categorical_values(new_diabetic_readmission_data, 10)
+diabetic_bin_med_data <- diabetic_bin_med_data[, !names(diabetic_bin_med_data) %in% c("metformin.pioglitazone", "glipizide.metformin", "troglitazone", "acetohexamide", "tolbutamide", "glipizide.metformin", "tolazamide")]
+
+#diabetic_bin_med_data_ <- remove_unbalanced_categorical_values(diabetic_bin_med_data, 10)
+col_names <- names(diabetic_bin_med_data)
+diabetic_bin_med_data <- diabetic_bin_med_data[, col_names[!(col_names %in% c("encounter_id", "patient_nbr", "readmitted"))]]
+
+## Finding all medicine combinations
+combinations <- find_treatment_combination(new_diabetic_readmission_data)
+## Regrouping medicine combinations if they are atleast 900> patients with that drug combinations
+med_combs <- recategorize_drug_comb(combinations)
+
+#new_diabetic_readmission_data_reduce_low_cat$med_combs <- med_combs
+diabetic_bin_med_data$med_combs <- med_combs
+
+### Treated patients: Return 0 if patients not treated, 1 if not treated. 
+#new_diabetic_readmission_data_reduce_low_cat$treated <- patients_treated_with_any_drugs(new_diabetic_readmission_data, medicines)
+
+### patients treated with banned drugs (Based on the research)
+#new_diabetic_readmission_data_reduce_low_cat$treated_banned_drugs <- treated_with_banned(new_diabetic_readmission_data, discontinued_medicines)
+
+write_csv(diabetic_bin_med_data, "/Users/lesiyonr/Library/CloudStorage/OneDrive-MichiganStateUniversity/stt811_readmission/data/diabetic_bin_med_data_final.csv")
+
+```
+
+
+
+
+```{r}
+data <- read_csv("/Users/lesiyonr/Library/CloudStorage/OneDrive-MichiganStateUniversity/stt811_readmission/data/diabetic_bin_med_data_final.csv")
+
+numerical_names <- c("num_lab_procedures", "num_procedures", "time_in_hospital", "num_medications", "number_outpatient", "number_emergency", "number_inpatient", "number_diagnoses")
+
+all_numerical <- c(numerical_names, c("admission_type_id", "discharge_disposition_id", "admission_source_id"))
+
+cat_names <- names(data)[!(names(data) %in% all_numerical)]
+data[, cat_names] <- lapply(data[, cat_names], as.factor)
+```
